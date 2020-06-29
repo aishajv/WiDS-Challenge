@@ -16,4 +16,10 @@ I have created this repo to rovide a complete walk through the early stages of t
 The challenge is to create a model that uses data from the first 24 hours of intensive care to predict patient survival. MIT’s GOSSIS community initiative, with privacy certification from the Harvard Privacy Lab, has provided a dataset of more than 130,000 hospital Intensive Care Unit (ICU) visits from patients, spanning a one-year timeframe.
 
 ### Summary of Feature Engineering Done So Far...
+![](https://github.com/aishajv/WiDS-Challenge/blob/master/mesc/progress.PNG)
+
+For complete project walkthrough of above, refer to my following blog posts on medium:
+* [Understanding Data — Take#01](https://towardsdatascience.com/hacking-the-data-science-pipeline-b1121996f4b5)
+* [Feature Improvement — Take#02.01](https://towardsdatascience.com/hacking-the-data-science-pipeline-18303e2c4307)
+
 
