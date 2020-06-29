@@ -1,0 +1,198 @@
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_curve,auc
+from sklearn.base import TransformerMixin
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import MinMaxScaler,StandardScaler
+from sklearn.base import BaseEstimator
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.linear_model import LogisticRegression
+import numpy as np
+import pandas as pd
+import sys
+sys.path.append('./feat_imp_modeler/')
+import viz as vz
+
+
+from sklearn.metrics import make_scorer
+from sklearn.metrics import roc_curve, auc
+
+class CustomDummifier(TransformerMixin):
+    def __init__(self, cols=None):
+        self.cols = cols
+      
+    def transform(self, X):
+        
+        self.dummified=pd.get_dummies(X, columns=self.cols,drop_first=True)
+        
+        return self.dummified
+    
+    def fit(self, *_):
+        return self
+    
+    
+class BoolCat(BaseEstimator,TransformerMixin):
+    def __init__(self, cols=None):
+        self.cols = cols
+        
+    def transform(self, X):
+        
+        return X[self.cols]
+        
+    
+    def fit(self, *_):
+        return self    
+    
+
+"""    
+class CustomDropDuplicates(BaseEstimator,TransformerMixin):
+    
+    def __init__(self, cols=None):
+        
+        self.cols = cols
+        self.do_transform=True
+        self.unique_rows=None
+        
+    def transform(self, X):
+        
+        if self.do_transform: #removing duplicates only if test set has labels - (dont do for hackathon challenge)
+            
+            X, y_idxs = np.unique(X,axis=0,return_index=True)
+            self.y_idxs=y_idxs
+            self.unique_rows=self.y_idxs.shape[0]
+            
+        return X
+    
+    def fit(self, *_):
+        return self      
+
+class CustomQuantitativeImputer(TransformerMixin):
+
+    def __init__(self, cols=None, strategy="median"):
+        self.cols = cols
+        self.strategy = strategy
+
+    def transform(self, df ):
+        X = df
+        impute = SimpleImputer(strategy=self.strategy)
+        for col in self.cols:
+            X[col] = impute.fit_transform(X[[col]])
+           
+        return X
+
+    def fit(self, *_):
+        return self"""
+
+class ModelerPipeline:
+    
+    
+    # define scoring function 
+    def custom_auc(self,ground_truth, predictions):
+         # I need only one column of predictions["0" and "1"]. You can get an error here
+         # while trying to return both columns at once
+        fpr, tpr, _ = roc_curve(ground_truth, predictions[:, 1], pos_label=1)    
+        return auc(fpr, tpr)
+
+    def __init__(self,dataset,label,numeric_feats,cat_feats,knn_list=[5]):
+
+        self.knn_list=knn_list
+        # KNN parameters to try
+        self.grid_search=False
+        self.knn_params = {'clf__n_neighbors':self.knn_list}
+        self.df=dataset.copy()
+        self.labels_col=label
+        self.X=self.df.drop([self.labels_col],axis=1) #drop labels 
+        self.feat_columns=self.X.columns
+        self.y=self.df[self.labels_col]
+        self.numeric_features=numeric_feats
+        self.categorical_features=cat_feats #string encoded features
+        self.boolcat_feats=list(set(self.X.columns)-set(cat_feats+numeric_feats)) #categorical binary numeric columns
+       
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y,shuffle=True)
+
+        # We create the preprocessing pipelines for both numeric and categorical data.
+        
+        self.numeric_transformer=Pipeline(steps=[('scaler', StandardScaler())]) 
+        self.cd=CustomDummifier(cols=self.categorical_features)
+        
+        self.boolcat_transformer=BoolCat(cols=self.boolcat_feats)
+        self.categorical_transformer=Pipeline(steps=[('dummify', self.cd)])
+                                      
+        #merge above transformers into 1
+        self.preprocessor = ColumnTransformer(
+            transformers=[
+                ('num', self.numeric_transformer, self.numeric_features),
+                ('cat', self.categorical_transformer, self.categorical_features),
+                ('boolcat',self.boolcat_transformer,self.boolcat_feats)])
+       
+        #--------------------------------------------- create data processer pipeline ---------------------------------------------
+        self.pipeline_processer = Pipeline(steps=[('preprocessor', self.preprocessor)]) # data preprocesser pipeline
+        
+        # to be standart sklearn's scorer        
+        self.my_auc=make_scorer(self.custom_auc, greater_is_better=True, needs_proba=True)
+        
+        
+    def fit(self):
+
+        #first pass from data precossing pipeline
+        self.pipeline_processer.fit(self.X_train) # fit training data from data pipeline
+        self.X_train_tf=self.pipeline_processer.transform(self.X_train) # transform training data from data pipeline
+        print(self.X_train_tf.shape)
+        
+        #--------------------------------------------- create model pipeline ---------------------------------------------
+            
+        self.pipeline_clf = Pipeline(steps=[('clf',LogisticRegression())]) # create model pipeline
+            
+        
+        self.pipeline_clf.fit(self.X_train_tf,self.y_train) # train the model - call fit 
+
+        #-------------------------------------------- predict test instances -------------------------------------------- 
+       
+        print("Fit Success")
+
+    def predict(self,model_name=None,df_test=None,y_test=None,imputer_func_dict=None,
+                save_path="../../predictions/",label_col="hospital_death",id_col="encounter_id",title="",plot=True):
+        ids=None
+        try:ids=df_test[id_col].astype(np.int32)
+        except : pass
+        
+        if df_test is None: #generating predictions for split test set
+
+            df_test=self.X_test
+            y_test=self.y_test
+
+        df_test=df_test[self.feat_columns]
+
+        #------------ passing the test set from preprocessing pipeline
+            
+        self.X_test_tf=self.pipeline_processer.transform(df_test) # transform test data from data pipeline 
+        print("Test Set Transformation Done",self.X_test_tf.shape)
+        
+        # ------------------ generate predictions of test set
+        y_scores=self.pipeline_clf.predict_proba(self.X_test_tf)[:, 1]
+        y_preds=self.pipeline_clf.predict(self.X_test_tf) 
+        
+        roc_auc=None
+        if y_test is not None: #for test set labels given 
+            
+            fpr, tpr, threshold = roc_curve(y_test, y_scores)
+            roc_auc = auc(fpr, tpr)
+        
+            print("\n ******** roc_auc : {} ********".format(roc_auc))
+            if plot:
+                vz.plot_roc_auc(fpr,tpr,roc_auc,clf=title)
+            
+        else: #generate test set predictions        
+             
+            pred_df=pd.DataFrame(np.column_stack([ids,y_scores]),columns=[id_col,label_col])
+            pred_df=pred_df.astype({id_col: np.int32})
+            pred_df.to_csv(save_path+model_name,index=False)
+            print("Predictions Generated & Saved : {}".format(save_path+model_name))
+           
+        return roc_auc,y_preds,y_scores
