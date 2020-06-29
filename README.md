@@ -19,7 +19,7 @@ The challenge is to create a model that uses data from the first 24 hours of int
 ![](https://github.com/aishajv/WiDS-Challenge/blob/master/mesc/progress.PNG)
 
 For complete project walkthrough of above, refer to my following blog posts on medium:
-* [Understanding Data — Take#01](https://towardsdatascience.com/hacking-the-data-science-pipeline-b1121996f4b5)
-* [Feature Improvement — Take#02.01](https://towardsdatascience.com/hacking-the-data-science-pipeline-18303e2c4307)
+* Iteration # 01 [Understanding Data — Take#01](https://towardsdatascience.com/hacking-the-data-science-pipeline-b1121996f4b5)
+* Iteration # 02 [Feature Improvement — Take#02.01](https://towardsdatascience.com/hacking-the-data-science-pipeline-18303e2c4307)
 
 
